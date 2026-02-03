@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hey You ❤️</title>
+
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Segoe UI', sans-serif;
+  }
+
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #ffdde1, #ee9ca7);
+    transition: background 1s ease;
+    perspective: 1000px;
+  }
+
+  body.celebrate {
+    background: radial-gradient(circle at top, #ff9a9e, #fad0c4);
+  }
+
+  canvas {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .card {
+    background: transparent;
+    width: 90%;
+    max-width: 420px;
+    z-index: 5;
+    position: relative;
+  }
+
+  .card-inner {
+    position: relative;
+    width: 100%;
+    transform-style: preserve-3d;
+    transition: transform 0.6s ease;
+    background: rgba(255,255,255,0.96);
+    padding: 40px;
+    border-radius: 20px;
+    text-align: center;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+  }
+
+  .card-inner.flip {
+    transform: rotateY(180deg);
+  }
+
+  h1 { color: #333; }
+  h2 { color: #ff4d6d; }
+  p { color: #666; }
+
+  .options {
+    margin-top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .option-btn {
+    padding: 12px 24px;
+    border-radius: 30px;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+    background: #ff9a9e;
+    color: white;
+    transition: background 0.2s;
+  }
+
+  .option-btn:hover {
+    background: #ff4d6d;
+  }
+
+  .buttons {
+    margin-top: 20px;
+    position: relative;
+    height: 60px;
+  }
+
+  button {
+    padding: 12px 24px;
+    border-radius: 30px;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+  }
+
+  #yesBtn {
+    background: #ff4d6d;
+    color: white;
+  }
+
+  #noBtn {
+    background: #f1f1f1;
+    position: absolute;
+  }
+
+  .card-photo {
+    width: 100%;
+    max-width: 140px;
+    height: 140px;
+    object-fit: cover;
+    border-radius: 16px;
+    margin: 0 auto 16px;
+    display: block;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+
+  .card-photo-round {
+    border-radius: 50%;
+  }
+
+  .photo-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 20px;
+  }
+
+  .photo-grid img {
+    width: 100%;
+    max-width: 120px;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+</style>
+</head>
+
+<body>
+
+<canvas id="canvas"></canvas>
+
+<div class="card" id="card">
+  <div class="card-inner" id="cardInner"></div>
+</div>
+
+<script>
+/* ---------- Canvas setup ---------- */
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+window.onresize = () => {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+};
+
+/* ---------- Fireworks (lightweight so they don't stick) ---------- */
+let rockets = [];
+let particles = [];
+let confetti = [];
+const gravity = 0.06;
+const MAX_PARTICLES = 400;
+const MAX_ROCKETS_IN_FLIGHT = 4;
+let rocketQueue = 0;
+
+const fireworkColors = [
+  '#ff4d6d', '#ff6b9d', '#ff9a9e', '#ffd93d',
+  '#e84393', '#fd79a8', '#fdcb6e', '#ffffff'
+];
+
+const confettiColors = [
+  '#ff4d6d', '#ff6b9d', '#ffd93d', '#e84393', '#fd79a8',
+  '#fff5e6', '#ffffff', '#ff9a9e'
+];
+
+function createRocket() {
+  if (rockets.length >= MAX_ROCKETS_IN_FLIGHT) {
+    rocketQueue++;
+    return;
+  }
+  const x = Math.random() * canvas.width * 0.6 + canvas.width * 0.2;
+  rockets.push({
+    x, y: canvas.height,
+    vx: (Math.random() - 0.5) * 2,
+    vy: -Math.random() * 4 - 10,
+    color: fireworkColors[Math.floor(Math.random() * fireworkColors.length)],
+    trail: []
+  });
+}
+
+function explodeRocket(r) {
+  if (particles.length >= MAX_PARTICLES) return;
+  const n = Math.min(35, MAX_PARTICLES - particles.length);
+  for (let i = 0; i < n; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 4 + 3;
+    particles.push({
+      x: r.x, y: r.y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      radius: 1.5,
+      life: 60 + Math.random() * 40,
+      maxLife: 100,
+      color: fireworkColors[Math.floor(Math.random() * fireworkColors.length)]
+    });
+  }
+  const spark = Math.min(15, MAX_PARTICLES - particles.length);
+  for (let i = 0; i < spark; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 6 + 4;
+    particles.push({
+      x: r.x, y: r.y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      radius: 1,
+      life: 40 + Math.random() * 30,
+      maxLife: 70,
+      color: '#ffffff'
+    });
+  }
+}
+
+function burstPartyPopper(cx, cy) {
+  for (let i = 0; i < 60; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 8 + 6;
+    const w = 4 + Math.random() * 6;
+    const h = 2 + Math.random() * 4;
+    confetti.push({
+      x: cx, y: cy,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 2,
+      w, h,
+      color: confettiColors[Math.floor(Math.random() * confettiColors.length)],
+      rot: Math.random() * 360,
+      rotSpeed: (Math.random() - 0.5) * 20,
+      life: 120 + Math.random() * 60,
+      maxLife: 180
+    });
+  }
+}
+
+function tick() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (rocketQueue > 0 && rockets.length < MAX_ROCKETS_IN_FLIGHT) {
+    rocketQueue--;
+    createRocket();
+  }
+
+  for (let i = rockets.length - 1; i >= 0; i--) {
+    const r = rockets[i];
+    r.trail.push({ x: r.x, y: r.y });
+    if (r.trail.length > 8) r.trail.shift();
+    r.x += r.vx;
+    r.y += r.vy;
+    r.vy += 0.12;
+
+    ctx.strokeStyle = r.color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    r.trail.forEach((t, j) => { if (j === 0) ctx.moveTo(t.x, t.y); else ctx.lineTo(t.x, t.y); });
+    ctx.globalAlpha = 0.6;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = r.color;
+    ctx.beginPath();
+    ctx.arc(r.x, r.y, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (r.vy >= 0) {
+      explodeRocket(r);
+      rockets.splice(i, 1);
+    }
+  }
+
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += gravity;
+    p.vx *= 0.98;
+    p.vy *= 0.98;
+    p.life--;
+    const alpha = p.life / p.maxLife;
+    const rad = Math.max(0.3, p.radius * alpha);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, rad, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+
+  for (let i = confetti.length - 1; i >= 0; i--) {
+    const c = confetti[i];
+    c.x += c.vx;
+    c.y += c.vy;
+    c.vy += 0.08;
+    c.vx *= 0.99;
+    c.vy *= 0.99;
+    c.rot += c.rotSpeed;
+    c.life--;
+    const alpha = c.life / c.maxLife;
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    ctx.rotate(c.rot * Math.PI / 180);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = c.color;
+    ctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h);
+    ctx.restore();
+    if (c.life <= 0) confetti.splice(i, 1);
+  }
+
+  requestAnimationFrame(tick);
+}
+tick();
+
+/* ---------- Romantic Music: Emotional Piano (your chosen track) ----------
+   Download from: https://pixabay.com/music/modern-classical-emotional-piano-music-256262/
+   Click "Free Download", save the MP3 in the same folder as this HTML, and name it "emotional-piano.mp3"
+   Or use any filename and set it below. */
+const audio = new Audio();
+audio.loop = true;
+audio.volume = 0.7;
+audio.preload = 'auto';
+
+const musicUrls = [
+  'emotional-piano.mp3',
+  'https://cdn.pixabay.com/audio/2022/08/04/audio_381a7f2d2c.mp3',
+  'https://cdn.pixabay.com/audio/2022/05/27/audio_306c755a2f.mp3'
+];
+
+let audioCtx = null;
+let fallbackPlaying = false;
+
+function playFallbackMusic() {
+  if (fallbackPlaying) return;
+  fallbackPlaying = true;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const notes = [261.63, 293.66, 329.63, 349.23, 392, 440, 493.88, 523.25];
+  const melody = [0, 2, 4, 2, 0, 4, 5, 4, 2, 4, 2, 0, 0, 2, 2, 4, 4, 5, 4, 2, 0];
+  let i = 0;
+  function playNote() {
+    if (i >= melody.length) i = 0;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = notes[melody[i]];
+    gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.45);
+    i++;
+    if (fallbackPlaying) setTimeout(playNote, 380);
+  }
+  playNote();
+}
+
+function playMusic() {
+  function tryUrl(idx) {
+    if (idx >= musicUrls.length) {
+      playFallbackMusic();
+      return;
+    }
+    audio.src = musicUrls[idx];
+    audio.load();
+    audio.play().then(() => {}).catch(() => tryUrl(idx + 1));
+  }
+  tryUrl(0);
+}
+
+/* ---------- Personal photos (put your images in same folder as this file) ---------- */
+const PHOTOS = [
+  "photo1.jpg",
+  "photo2.jpg"
+];
+
+/* ---------- Questions flow ---------- */
+const card = document.getElementById("card");
+const cardInner = document.getElementById("cardInner");
+
+const questions = [
+  { question: "What's the best way to spend a day together?", options: ["Adventure", "Cozy day in", "Surprise me"] },
+  { question: "What do you prefer for a perfect evening?", options: ["Dinner under the stars", "Movie night", "Long walk and talk"] },
+  { question: "Which flower do you love the most?", options: ["Roses", "Tulips", "Sunflowers", "Lilies"] },
+  { question: "What makes you feel most special?", options: ["Unexpected surprises", "Quality time", "Sweet words", "Little gestures"] }
+];
+let currentStep = 0;
+let isFlipping = false;
+
+function renderStep(step) {
+  if (step <= 3) {
+    const q = questions[step];
+    cardInner.innerHTML = "<h2>" + q.question + "</h2><div class=\"options\">" +
+      q.options.map(function(opt) { return "<button type=\"button\" class=\"option-btn\">" + opt + "</button>"; }).join("") + "</div>";
+  } else {
+    const valentinePhoto = PHOTOS.length ? "<img src=\"" + PHOTOS[0] + "\" alt=\"\" class=\"card-photo card-photo-round\" onerror=\"this.style.display='none'\">" : "";
+    cardInner.innerHTML = valentinePhoto + "<h1>Hey You ❤️</h1><p>I was wondering something…</p><h2>Will you be my Valentine?</h2><div class=\"buttons\"><button type=\"button\" id=\"yesBtn\">Yes 💖</button><button type=\"button\" id=\"noBtn\">No 🙃</button></div>";
+    attachValentineListeners();
+  }
+}
+
+function attachValentineListeners() {
+  const yesBtn = document.getElementById("yesBtn");
+  const noBtn = document.getElementById("noBtn");
+  if (!yesBtn || !noBtn) return;
+  noBtn.addEventListener("mouseover", () => {
+    noBtn.style.transform =
+      `translate(${Math.random()*200-100}px, ${Math.random()*200-100}px)`;
+  });
+
+  yesBtn.addEventListener("click", () => {
+    document.body.classList.add("celebrate");
+    playMusic();
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    burstPartyPopper(cx, cy);
+    setTimeout(() => burstPartyPopper(cx - 40, cy - 20), 150);
+    setTimeout(() => burstPartyPopper(cx + 30, cy - 10), 300);
+    for (let i = 0; i < 45; i++) {
+      setTimeout(() => createRocket(), i * 600);
+    }
+    setTimeout(() => {
+      cardInner.innerHTML = getSuccessHTML();
+    }, 800);
+  });
+}
+
+function getSuccessHTML() {
+  const successPhotos = PHOTOS.length ? "<div class=\"photo-grid\">" + PHOTOS.map(function(s) { return "<img src=\"" + s + "\" alt=\"\" onerror=\"this.style.display='none'\">"; }).join("") + "</div>" : "";
+  return "<h1>It's a YES 🥰</h1><p>This moment is special to me.<br>And so are you.</p>" + successPhotos + "<h2>Happy Valentine's ❤️</h2>";
+}
+
+card.addEventListener("click", (e) => {
+  if (!e.target.classList.contains("option-btn") || isFlipping) return;
+  isFlipping = true;
+  cardInner.classList.add("flip");
+  cardInner.addEventListener("transitionend", function onFlipEnd() {
+    cardInner.removeEventListener("transitionend", onFlipEnd);
+    currentStep++;
+    renderStep(currentStep);
+    cardInner.classList.remove("flip");
+    isFlipping = false;
+  }, { once: true });
+});
+
+renderStep(0);
+</script>
+
+</body>
+</html>
